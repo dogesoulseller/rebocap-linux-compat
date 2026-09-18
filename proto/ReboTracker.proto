@@ -1,0 +1,75 @@
+syntax = "proto3";
+package rebocap_pb;
+
+message Position {
+  int32 tracker_id = 1;
+  repeated double q = 10;
+  repeated float pos = 11;
+}
+
+message WipInfo {
+  enum WipStatus {
+    WIP_STOP_WALKING = 0;
+    WIP_START_WALKING = 1;
+    WIP_STOPPED = 2;
+    WIP_WALKING = 3;
+    WIP_EXIST = 4;
+  }
+  Position position = 1;
+  float x = 2;
+  float y = 3;
+  WipInfo.WipStatus wip_status = 4;
+}
+
+message WipSetting {
+  bool open_wip = 1;
+  bool output_as_treadmill = 2;
+  bool use_left_hand = 3;
+  bool joystick_control = 4;
+  bool replace_hand_pose = 5;
+}
+
+message WipFuncStateChange {
+  bool switch_open = 1;
+}
+
+message UniverseChange {
+  float yaw = 1;
+  repeated float pos = 2;
+}
+
+message PathFailed {
+  int32 failed = 1;
+}
+
+message DeviceNew {
+  int32 tracker_id = 1;
+  int32 tracker_role = 3;
+  string tracker_name = 4;
+}
+
+message DeviceSt {
+  enum Status {
+    DISCONNECTED = 0;
+    OK = 1;
+    BUSY = 2;
+    ERROR = 3;
+    OCCLUDED = 4;
+  }
+  int32 tracker_id = 1;
+  DeviceSt.Status status = 2;
+  float battery_level = 3;
+}
+
+message RebocapMsg {
+  oneof message {
+    Position position = 1;
+    DeviceNew tracker_added = 2;
+    DeviceSt tracker_status = 3;
+    UniverseChange uch = 4;
+    PathFailed path_failed = 5;
+    WipInfo wip_info = 6;
+    WipSetting wip_setting = 7;
+    WipFuncStateChange wip_func_state_change = 8;
+  }
+}

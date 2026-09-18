@@ -1,0 +1,23 @@
+# Vendor software and anything unpacked or derived from it
+*.exe
+/extracted/
+/sdk/
+/log/
+
+# Working notes and reverse-engineering material
+/private/
+
+# Wine prefixes
+/pfx/
+
+# Captures of the app's output
+/captures/
+*.hex
+
+# Build output
+/driver/build*/
+/driver/dist/
+/driver/test/harness
+/driver/test/harness_static
+*.so
+__pycache__/

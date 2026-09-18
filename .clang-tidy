@@ -1,0 +1,41 @@
+# Run from the repository root, for example:
+#   clang-tidy driver/src/driver.cpp -- -std=c++17 -isystem /usr/include/openvr
+#   clang-tidy bridge/bridge.c -- --target=x86_64-w64-mingw32
+# The headers in driver/src are checked through driver.cpp.
+Checks: >
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-invalid-enum-default-initialization,
+  -bugprone-throwing-static-initialization,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  -misc-const-correctness,
+  -misc-include-cleaner,
+  -misc-no-recursion,
+  -misc-non-private-member-variables-in-classes,
+  -modernize-avoid-c-arrays,
+  -modernize-avoid-c-style-cast,
+  -modernize-macro-to-enum,
+  -modernize-use-nodiscard,
+  -modernize-use-scoped-lock,
+  -modernize-use-trailing-return-type,
+  -performance-enum-size,
+  -performance-no-int-to-ptr,
+  -readability-avoid-nested-conditional-operator,
+  -readability-function-cognitive-complexity,
+  -readability-identifier-length,
+  -readability-isolate-declaration,
+  -readability-magic-numbers,
+  -readability-math-missing-parentheses,
+  -readability-named-parameter,
+  -readability-uppercase-literal-suffix
+HeaderFilterRegex: 'driver/src/'
+FormatStyle: file
+CheckOptions:
+  readability-implicit-bool-conversion.AllowIntegerConditions: true
+  readability-implicit-bool-conversion.AllowPointerConditions: true

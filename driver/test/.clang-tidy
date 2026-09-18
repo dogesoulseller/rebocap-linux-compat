@@ -1,0 +1,6 @@
+# Test code: one translation unit per program, command-line parsing without error reports.
+InheritParentConfig: true
+Checks: >
+  -bugprone-unchecked-string-to-number-conversion,
+  -misc-use-anonymous-namespace,
+  -misc-use-internal-linkage

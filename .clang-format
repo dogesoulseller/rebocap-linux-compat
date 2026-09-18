@@ -1,0 +1,23 @@
+# Style reference: driver/src/vtable.hpp and the decoder in driver/src/proto.hpp.
+BasedOnStyle: LLVM
+ColumnLimit: 120
+IndentWidth: 4
+AccessModifierOffset: -4
+NamespaceIndentation: All
+IndentCaseLabels: true
+PointerAlignment: Right
+DerivePointerAlignment: false
+SpaceAfterTemplateKeyword: false
+AlwaysBreakTemplateDeclarations: Yes
+# Every control statement has braces and a body on its own lines.
+InsertBraces: true
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AlignTrailingComments:
+  Kind: Never
+SpacesBeforeTrailingComments: 1
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false

@@ -1,0 +1,7 @@
+/* vrserver exports its own C++ runtime (__cxa_throw, __gxx_personality_v0, ...). Those copies
+ * can override any symbol that this library exports. That mixes two C++ runtimes and crashes
+ * on the first exception. Export only the entry point, so all other symbols bind internally. */
+{
+  global: HmdDriverFactory;
+  local: *;
+};

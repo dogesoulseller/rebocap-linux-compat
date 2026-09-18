@@ -1,0 +1,10 @@
+{
+	"driver_rebocap" : {
+		"bridge_host" : "127.0.0.1",
+		"bridge_port" : 36850,
+		"universe_fallback" : true,
+		"input_hooks" : true,
+		"wip_direction" : "game",
+		"wip_game_reference" : "head"
+	}
+}
