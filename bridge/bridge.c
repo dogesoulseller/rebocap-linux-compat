@@ -173,8 +173,13 @@ static HANDLE open_pipe(SOCKET sock) {
             FD_ZERO(&rd);
             FD_SET(sock, &rd);
 
-            if (select(0, &rd, NULL, NULL, &tv) > 0 && recv(sock, &c, 1, MSG_PEEK) <= 0) {
-                return INVALID_HANDLE_VALUE;
+            if (select(0, &rd, NULL, NULL, &tv) > 0) {
+                if (recv(sock, &c, 1, MSG_PEEK) <= 0) {
+                    return INVALID_HANDLE_VALUE;
+                }
+
+                /* The driver has already sent data, so select returns at once. Wait here instead. */
+                Sleep(1000);
             }
         }
     }
@@ -226,7 +231,11 @@ int main(int argc, char **argv) {
             logmsg("pipe open, relaying");
             thread = CreateThread(NULL, 0, pipe_to_sock, &s, 0, NULL);
             sock_to_pipe(&s);
-            WaitForSingleObject(thread, INFINITE);
+            /* The reader may have started a ReadFile after end_session's CancelIoEx. Cancel until it exits. */
+            while (WaitForSingleObject(thread, 100) == WAIT_TIMEOUT) {
+                CancelIoEx(s.pipe, NULL);
+            }
+
             CloseHandle(thread);
             CloseHandle(s.pipe);
         }

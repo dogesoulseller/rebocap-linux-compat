@@ -333,6 +333,10 @@ namespace {
             input->CreateScalarComponent(c, "/input/joystick/y", &y_, vr::VRScalarType_Absolute,
                                          vr::VRScalarUnits_NormalizedTwoSided);
 
+            if (pose_.deviceIsConnected) {
+                vr::VRServerDriverHost()->TrackedDevicePoseUpdated(index_, pose_, sizeof pose_);
+            }
+
             return vr::VRInitError_None;
         }
 
@@ -356,14 +360,16 @@ namespace {
             return pose_;
         }
 
+        // The state is stored even before activation, because SteamVR may call Activate later.
+        // Activate then submits it.
         void SetConnected(bool connected) {
+            pose_.deviceIsConnected = connected;
+            pose_.poseIsValid = connected;
+            pose_.result = connected ? vr::TrackingResult_Running_OK : vr::TrackingResult_Running_OutOfRange;
             if (!activated()) {
                 return;
             }
 
-            pose_.deviceIsConnected = connected;
-            pose_.poseIsValid = connected;
-            pose_.result = connected ? vr::TrackingResult_Running_OK : vr::TrackingResult_Running_OutOfRange;
             vr::VRServerDriverHost()->TrackedDevicePoseUpdated(index_, pose_, sizeof pose_);
 
             if (!connected) {
@@ -495,6 +501,7 @@ namespace {
 
             if (client_.generation() != generation_) {
                 generation_ = client_.generation();
+                status_sent_ = false;
                 hello_sent_ = false;
             }
 
@@ -547,13 +554,17 @@ namespace {
 
             UpdateUniverse(now);
 
-            if (!hello_sent_ || hmd_ok != last_hmd_ok_) {
-                client_.send(rebo::encode_status(0, hmd_ok ? rebo::kOk : rebo::kDisconnected));
+            // Status is sent once per connection and on change while the universe is unknown.
+            // Universe follows each status and each change found by UpdateUniverse.
+            // Dropped send will be repeated on the next frame.
+            const bool status_due = !status_sent_ || hmd_ok != last_hmd_ok_;
+            if (status_due) {
+                status_sent_ = client_.send(rebo::encode_status(0, hmd_ok ? rebo::kOk : rebo::kDisconnected));
                 last_hmd_ok_ = hmd_ok;
+            }
 
-                if (have_universe_) {
-                    hello_sent_ = SendUniverse();
-                }
+            if (have_universe_ && (status_due || !hello_sent_)) {
+                hello_sent_ = SendUniverse();
             }
 
             // The vendor driver sends the headset pose on every vrserver frame.
@@ -724,12 +735,13 @@ namespace {
         }
 
         void UpdateWalkInPlace(Clock::time_point now) {
-            if (rebo::hooks::g.installed && now - last_hook_resolve_ > std::chrono::seconds(1)) {
+            if (now - last_hook_resolve_ > std::chrono::seconds(1)) {
                 last_hook_resolve_ = now;
-                if (rebo::hooks::ResolvePending()) {
+                if (rebo::hooks::g.installed && rebo::hooks::ResolvePending()) {
                     Log("captured a hand controller's stick for walk-in-place");
                 }
 
+                // The pose hook can be installed when the input hooks are not.
                 if (rebo::pose_hooks::g.installed) {
                     FindHandControllers();
                 }
@@ -857,9 +869,10 @@ namespace {
 
         static std::string FindDefaultChaperonePath() {
             std::string reg;
-            if (const char *o = std::getenv("VR_PATHREG_OVERRIDE")) {
+            // OpenVR and install.py treat an empty variable as unset.
+            if (const char *o = std::getenv("VR_PATHREG_OVERRIDE"); o && *o) {
                 reg = o;
-            } else if (const char *x = std::getenv("XDG_CONFIG_HOME")) {
+            } else if (const char *x = std::getenv("XDG_CONFIG_HOME"); x && *x) {
                 reg = std::string(x) + "/openvr/openvrpaths.vrpath";
             } else if (const char *h = std::getenv("HOME")) {
                 reg = std::string(h) + "/.config/openvr/openvrpaths.vrpath";
@@ -1016,7 +1029,7 @@ namespace {
                 universe_failures_ = 0;
                 Log("universe " + std::to_string(id) + ": translation " + std::to_string(found.x) + " " +
                     std::to_string(found.y) + " " + std::to_string(found.z) + ", yaw " + std::to_string(found.yaw));
-                SendUniverse();
+                hello_sent_ = false; // RunFrame sends it and repeats a dropped send
                 return;
             }
 
@@ -1038,7 +1051,7 @@ namespace {
                 universe_.id = id;
                 have_universe_ = true;
                 using_fallback_ = true;
-                SendUniverse();
+                hello_sent_ = false;
             }
         }
 
@@ -1106,6 +1119,7 @@ namespace {
         Clock::time_point last_wip_output_;
         Clock::time_point last_hook_resolve_;
         unsigned generation_ = 0;
+        bool status_sent_ = false;
         bool hello_sent_ = false;
         bool last_hmd_ok_ = false;
         bool have_universe_ = false;

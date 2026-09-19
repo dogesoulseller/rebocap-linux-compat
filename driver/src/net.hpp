@@ -12,6 +12,7 @@
 #include <thread>
 #include <vector>
 
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -84,6 +85,26 @@ namespace rebo {
         }
 
     private:
+        // A blocking connect to an unreachable host takes minutes, and stop() would wait for it.
+        // This waits at most 3 s and returns early when stop_ is set.
+        bool wait_connected(const int fd) const {
+            for (int i = 0; i < 15 && !stop_; i++) {
+                pollfd p{.fd = fd, .events = POLLOUT, .revents = 0};
+                const int r = poll(&p, 1, 200);
+                if (r < 0 && errno != EINTR) {
+                    return false;
+                }
+
+                if (r > 0) {
+                    int err = 0;
+                    socklen_t len = sizeof err;
+                    return getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len) == 0 && err == 0;
+                }
+            }
+
+            return false;
+        }
+
         int connect_once() const {
             addrinfo hints{}, *res = nullptr;
             hints.ai_family = AF_UNSPEC;
@@ -95,12 +116,13 @@ namespace rebo {
 
             int fd = -1;
             for (const addrinfo *a = res; a; a = a->ai_next) {
-                fd = socket(a->ai_family, a->ai_socktype | SOCK_CLOEXEC, a->ai_protocol);
+                fd = socket(a->ai_family, a->ai_socktype | SOCK_CLOEXEC | SOCK_NONBLOCK, a->ai_protocol);
                 if (fd < 0) {
                     continue;
                 }
 
-                if (connect(fd, a->ai_addr, a->ai_addrlen) == 0) {
+                if (connect(fd, a->ai_addr, a->ai_addrlen) == 0 || (errno == EINPROGRESS && wait_connected(fd))) {
+                    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
                     break;
                 }
 
@@ -161,11 +183,21 @@ namespace rebo {
             uint8_t chunk[8192];
             while (!stop_) {
                 pollfd p{.fd = fd, .events = POLLIN, .revents = 0};
-                if (poll(&p, 1, 200) == 0) {
+                const int ready = poll(&p, 1, 200);
+                if (ready == 0 || (ready < 0 && errno == EINTR)) {
                     continue;
                 }
 
+                // recv blocks and would keep stop() waiting, so it must not run after a failed poll.
+                if (ready < 0) {
+                    return;
+                }
+
                 const ssize_t r = recv(fd, chunk, sizeof chunk, 0);
+                if (r < 0 && errno == EINTR) {
+                    continue;
+                }
+
                 if (r <= 0) {
                     return;
                 }

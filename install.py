@@ -3,7 +3,7 @@
 
   ./install.py /path/to/rebocap_release_vXX.exe     install or update including Rebocap itself
   ./install.py                                      update bridge, driver, prefix fixes and launchers
-                                                    of an existing install, without moving the vendor app the vendor app is not touched
+                                                    of an existing install, the vendor app is not touched
   ./install.py --uninstall                          unregister the driver and remove launchers
                                                     (excluding install dir)
 options:
@@ -20,6 +20,7 @@ The install:
 import argparse
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -37,10 +38,26 @@ def need(tool, why):
     if not shutil.which(tool):
         sys.exit(f"missing `{tool}` ({why}); install it and run again")
 
+def pathreg():
+    """The same lookup as the driver's FindDefaultChaperonePath."""
+    config = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.expanduser(os.environ.get("VR_PATHREG_OVERRIDE") or os.path.join(config, "openvr", "openvrpaths.vrpath"))
+
+def data_home():
+    return os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+
+def desktop_exec_arg(arg):
+    """Quotes one argument for a desktop entry's Exec key."""
+    for ch in '\\"`$':
+        arg = arg.replace(ch, "\\" + ch)
+
+    # The value is also a desktop entry string, where a backslash is written twice. % starts a field code.
+    return ('"' + arg + '"').replace("\\", "\\\\").replace("%", "%%")
+
 def steamvr_dir():
     env = os.environ.get("STEAMVR_DIR")
     candidates = [env] if env else []
-    reg = os.path.expanduser(os.environ.get("VR_PATHREG_OVERRIDE", "~/.config/openvr/openvrpaths.vrpath"))
+    reg = pathreg()
     if os.path.exists(reg):
         candidates += json.load(open(reg)).get("runtime", [])
 
@@ -52,7 +69,7 @@ def steamvr_dir():
     sys.exit("SteamVR not found. Install it through Steam or set STEAMVR_DIR")
 
 def registered_rebocap_drivers():
-    reg = os.path.expanduser(os.environ.get("VR_PATHREG_OVERRIDE", "~/.config/openvr/openvrpaths.vrpath"))
+    reg = pathreg()
     if not os.path.exists(reg):
         return []
 
@@ -163,9 +180,8 @@ Categories=Game;Utility;
 """
 
 def user_paths():
-    data = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
     return (os.path.expanduser("~/.local/bin/rebocap"), os.path.expanduser("~/.local/bin/rebocap-config"),
-            os.path.join(data, "applications", "rebocap.desktop"))
+            os.path.join(data_home(), "applications", "rebocap.desktop"))
 
 def uninstall():
     vrpathreg = os.path.join(steamvr_dir(), "bin", "vrpathreg.sh")
@@ -181,8 +197,7 @@ def uninstall():
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("installer", nargs="?")
-    data_home = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
-    ap.add_argument("--home", default=os.path.join(data_home, "rebocap-linux"))
+    ap.add_argument("--home", default=os.path.join(data_home(), "rebocap-linux"))
     ap.add_argument("--com", default="COM5")
     ap.add_argument("--no-register", action="store_true")
     ap.add_argument("--uninstall", action="store_true")
@@ -254,7 +269,7 @@ def main():
 
     launcher = os.path.join(home, "rebocap.sh")
     with open(launcher, "w") as f:
-        f.write(LAUNCHER.format(home=home, dongle=DONGLE))
+        f.write(LAUNCHER.format(home=shlex.quote(home), dongle=DONGLE))
 
     os.chmod(launcher, 0o755)
     shutil.copy(os.path.join(SRC, "driver", "configure.py"), os.path.join(home, "rebocap-config"))
@@ -279,7 +294,7 @@ def main():
 
         os.makedirs(os.path.dirname(desktop), exist_ok=True)
         with open(desktop, "w") as f:
-            f.write(DESKTOP.format(launcher=launcher, icon=os.path.join(home, "app", "rebocap.ico")))
+            f.write(DESKTOP.format(launcher=desktop_exec_arg(launcher), icon=os.path.join(home, "app", "rebocap.ico")))
 
     print(f"\ninstalled in {home}")
     print("start the app with `rebocap` (or via desktop entry), then start SteamVR.")

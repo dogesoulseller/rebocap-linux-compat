@@ -101,7 +101,11 @@ def main():
             send(m)
 
         try:
-            pending += sock.recv(65536)
+            chunk = sock.recv(65536)
+            if not chunk:
+                raise ConnectionError("bridge closed the connection")
+
+            pending += chunk
         except socket.timeout:
             pass
 
